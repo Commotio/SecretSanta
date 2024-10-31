@@ -29,20 +29,18 @@ class Giver:
 def createAssignments(givers,participants,number_of_categories):
 	# Create a list of participants other than the giver and randomize the order
 	
-	# Array of lists that per giver with order of categories
+	# Array of lists per giver with order of categories
 	receiver_map = []
-	participant_gift_count = {}
 
-	# Create list of potential receivers
+	# Dictionary of participants received gifts counts
+	participant_gift_count = Counter()
+
+	# List of potential receivers
 	available_participants = participants[:]
 
 	# Create a list of participants other than the giver and randomize the order
-	for ind, giver in enumerate(givers):
-		potential_receivers = available_participants[:]
-
-		if giver.name in potential_receivers:
-			# Remove the giver from the list of potential receivers
-			potential_receivers.remove(giver.name)
+	for giver in givers:
+		potential_receivers = [p for p in available_participants if p != giver.name]
 		
 		# Randomize the list
 		random.shuffle(potential_receivers)
@@ -50,13 +48,10 @@ def createAssignments(givers,participants,number_of_categories):
 		# Take the first x participants (x is number of categories/how many gifts each person will give)
 		receiver_list = potential_receivers[:number_of_categories]
 
-		for i,rec in enumerate(receiver_list):
-			if rec in participant_gift_count:
-				participant_gift_count[rec] += 1
-				if participant_gift_count[rec]>=number_of_categories:
-					available_participants.remove(rec)
-			else:
-				participant_gift_count[rec] = 1
+		for rec in receiver_list:
+			participant_gift_count[rec] += 1
+			if participant_gift_count[rec]>=number_of_categories:
+				available_participants.remove(rec)
 
 		# Add each list to the receiver_map array
 		receiver_map.append(receiver_list)
