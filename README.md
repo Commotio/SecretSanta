@@ -1,5 +1,5 @@
 # SecretSanta
-Auto-assign secret santa participants  and/or categories randomly
+Auto-assign Secret Santa/Mystery Maccabee participants  and/or categories randomly
 Usage:
 
 ```
