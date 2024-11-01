@@ -80,6 +80,14 @@ def checkAssignments(receiver_map):
 
 	return True  # No conflicts found
 
+def readFromFile(filename):
+	# Append each line of file to a list
+	file_list = []
+	with open(filename, 'r') as f:
+		for line in f:
+			file_list.append(line.strip())
+	return file_list
+
 def finalizeAssignments(givers, receiver_map):
 	for ind, giver in enumerate(givers):
 		giver.assign(receiver_map[ind])
@@ -92,8 +100,8 @@ def writeAssignmentsFile(givers,path):
 
 def main():
 	parser=argparse.ArgumentParser()
-	parser.add_argument('-c', '--categories', help='Comma separated list of categories')
-	parser.add_argument('-p', '--participants', help='Comma separated list of participants', required=True)
+	parser.add_argument('-c', '--categories', help='New-line separated file or comma separated list of categories')
+	parser.add_argument('-p', '--participants', help='New-line separated file or comma separated list of participants', required=True)
 	parser.add_argument('-o', '--output_files', help='Output each participant\'s assignments to a separate file', action='store_true')
 	parser.add_argument('-of', '--output_path', help='Change directory to save files', default='.\\')	
 	parser.add_argument('-v', '--verbose', help='Set logging level to info', action='store_true')
@@ -106,10 +114,18 @@ def main():
 	elif args.very_verbose:
 		logging.basicConfig(level=logging.DEBUG)
 
-	# Get initial list of participants and categories from user input
-	participants = [participant.strip() for participant in args.participants.split(',')]
+	# If participants argument is a file, read from file
+	if os.path.isfile(args.participants):
+		participants = readFromFile(args.participants)
+	else:
+		participants = [participant.strip() for participant in args.participants.split(',')]
+
+	# If there are categories create list of categories from user input or file
 	if args.categories:
-		categories = [category.strip() for category in args.categories.split(',')]
+		if os.path.isfile(args.categories):
+			categories = readFromFile(args.categories)
+		else:
+			categories = [category.strip() for category in args.categories.split(',')]
 	else:
 		categories = [None]
 
