@@ -190,6 +190,7 @@ def main():
 
 	    # Write the files if the path exists
 		writeAssignmentsFile(givers,args.output_path)
+		print("Files created successfully.")
 	else:
 		for giver in givers:
 			print(giver)
