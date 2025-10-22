@@ -2,181 +2,259 @@ import argparse
 import logging
 import random
 import os
+import configparser
+import csv
 from collections import Counter
+import smtplib
+import ssl
+from email.message import EmailMessage
 
+# ---------------------------
+# Giver Class
+# ---------------------------
 class Giver:
+    def __init__(self, name, email=None, categories=None):
+        self.name = name
+        self.email = email
+        self.assignments = dict.fromkeys(categories or [None])
 
-	def __init__(self, name, assignments=None):
-	    self.name = name
-	    self.assignments = assignments if assignments is not None else {}
+    def assign(self, receiver_list):
+        for ind, category in enumerate(self.assignments):
+            self.assignments[category] = receiver_list[ind]
 
-	def assign(self, receiver_list=None):
-		if receiver_list is None:
-			receiver_list = []
+    def __str__(self):
+        if len(self.assignments) > 1:
+            msg = "\n".join(f"{cat}: {rec}" for cat, rec in self.assignments.items())
+        else:
+            msg = f"{self.assignments[None]}"
+        return f"{self.name}'s Top Secret Assignment:\n\n{msg}"
 
-		for ind, category in enumerate(self.assignments):
-			self.assignments[category] = receiver_list[ind]
+# ---------------------------
+# Read File
+# ---------------------------
+def readFromFile(filename):
+    with open(filename, 'r', encoding='utf-8') as f:
+        return [line.strip() for line in f]
 
-	def __str__(self):
-		msg = str()
-		if len(self.assignments) >1:
-			for category in self.assignments:
-				msg+=f"{self.assignments[category]}: {category}\n"
-		else:
-			msg = f"{self.assignments[None]}\n"
-		return f"{self.name}'s Top Secret Assignment:\n\n{msg}"
+# ---------------------------
+# Load Participants
+# ---------------------------
+def load_participants(file_path, categories, require_email=False):
+    givers = []
+    _, ext = os.path.splitext(file_path.lower())
+    if ext == ".csv":
+        with open(file_path, newline='', encoding='utf-8') as f:
+            # Try DictReader first
+            try:
+                reader = csv.DictReader(f)
+                first_row = next(reader)
+                # Check if 'Name' exists
+                if 'Name' in first_row or 'name' in first_row:
+                    # Use DictReader as normal
+                    f.seek(0)
+                    reader = csv.DictReader(f)
+                    for row in reader:
+                        name = row.get('Name') or row.get('name')
+                        email = row.get('Email') or row.get('email') or ''
+                        if name is None:
+                            raise ValueError(f"CSV row missing a name: {row}")
+                        name = name.strip()
+                        email = email.strip()
+                        if require_email and not email:
+                            raise ValueError(f"Participant '{name}' has no email, but email sending is enabled.")
+                        givers.append(Giver(name=name, email=email if email else None, assignments=dict.fromkeys([None])))
+                else:
+                    # CSV has no headers, fallback to first column = name, second = email
+                    f.seek(0)
+                    reader = csv.reader(f)
+                    for row in reader:
+                        if not row:
+                            continue
+                        name = row[0].strip()
+                        email = row[1].strip() if len(row) > 1 else None
+                        if require_email and not email:
+                            raise ValueError(f"Participant '{name}' has no email, but email sending is enabled.")
+                        givers.append(Giver(name=name, email=email, categories=categories))
+            except StopIteration:
+                raise ValueError("CSV file is empty")
+    else:
+        for line in readFromFile(file_path):
+            name = line.strip()
+            email = None
+            if require_email:
+                raise ValueError(f"Participant '{name}' has no email, but email sending is enabled.")
+            givers.append(Giver(name=name, email=email, categories=categories))
+    return givers
 
-def createAssignments(givers,participants,number_of_categories):
-	# Create a list of participants other than the giver and randomize the order
-	
-	# Array of lists per giver with order of categories
-	receiver_map = []
+# ---------------------------
+# Create Assignments
+# ---------------------------
+def createAssignments(givers, participants, categories):
+    #Assign a unique recipient for each giver in each category.
+    receiver_map = []
 
-	# Dictionary of participants received gifts counts
-	participant_gift_count = Counter()
-
-	# List of potential receivers
-	available_participants = participants[:]
-
-	# Create a list of participants other than the giver and randomize the order
-	for giver in givers:
-		potential_receivers = [p for p in available_participants if p != giver.name]
-		
-		# Randomize the list
-		random.shuffle(potential_receivers)
-
-		# Take the first x participants (x is number of categories/how many gifts each person will give)
-		receiver_list = potential_receivers[:number_of_categories]
-
-		for rec in receiver_list:
-			participant_gift_count[rec] += 1
-			if participant_gift_count[rec]>=number_of_categories:
-				available_participants.remove(rec)
-
-		# Add each list to the receiver_map array
-		receiver_map.append(receiver_list)
-
-	return receiver_map
-
-def checkAssignments(receiver_map):
-	# Check to validate that no recievers are getting the same category twice
-	index_value_map = {}
-	receiver_counts = {}
-
-	# If receiver_map is empty (if this is the first run)
-	# or if lists are not the same length (if someone was assigned less people)
-	# return False and try again
-	if not receiver_map or len(set(map(len,receiver_map)))!=1:
-	    return False
-
-	for i, rec_list in enumerate(receiver_map):
-	    for j, receiver in enumerate(rec_list):
-	    	# Validate that user is not in the same index twice
-        	if (j, receiver) in index_value_map:
-        		return False  # Conflict found
-        	else:
-        		index_value_map[(j, receiver)] = i
+    for giver in givers:
+        assigned = []
+        for category in categories:
+            # Available recipients for this category
+            potential_receivers = [p for p in participants if p != giver.name and p not in assigned]
+            if not potential_receivers:
+                raise ValueError("Not enough participants to assign without repeats")
+            recipient = random.choice(potential_receivers)
+            assigned.append(recipient)
+        receiver_map.append(assigned)
+    return receiver_map
 
 
-	return True  # No conflicts found
-
+# ---------------------------
+# Finalize Assignments
+# ---------------------------
 def finalizeAssignments(givers, receiver_map):
-	for ind, giver in enumerate(givers):
-		giver.assign(receiver_map[ind])
+    for ind, giver in enumerate(givers):
+        giver.assign(receiver_map[ind])
 
-def writeAssignmentsFile(givers,path):
-	for giver in givers:
-		file = os.path.join(path, f"{giver.name}_SecretSantaAssignments.txt")
-		with open(file, 'w') as f:
-			f.write(f"{giver}")
+# ---------------------------
+# Write Assignment Files
+# ---------------------------
+def writeAssignmentsFile(givers, path):
+    os.makedirs(path, exist_ok=True)
+    for giver in givers:
+        file_path = os.path.join(path, f"{giver.name}_SecretSantaAssignments.txt")
+        with open(file_path, 'w', encoding='utf-8') as f:
+            f.write(str(giver))
+    print(f"Files written to {path}")
 
+# ---------------------------
+# Send Email
+# ---------------------------
+def send_email(receiver, html_template=None, body_override=None, config_path="config.ini"):
+    # Load config
+    config = configparser.ConfigParser()
+    with open(config_path, encoding="utf-8") as f:
+        config.read_file(f)
+    email_conf = config["email"]
+
+    smtp_server = email_conf.get("smtp_server", "smtp.gmail.com")
+    port = email_conf.getint("port", 465)
+    sender = email_conf.get("sender_email")
+    password = email_conf.get("password")
+    subject = email_conf.get("subject", "Your Secret Santa Assignment!")
+
+    # Prepare body
+    text_body = body_override or "Your Secret Santa assignments are ready!"
+    html_body = html_template
+
+    # Create message
+    msg = EmailMessage()
+    msg["From"] = sender
+    msg["To"] = receiver
+    msg["Subject"] = subject
+    msg.set_content(text_body)
+    if html_body:
+        msg.add_alternative(html_body, subtype="html")
+
+    # Send
+    context = ssl.create_default_context()
+    with smtplib.SMTP_SSL(smtp_server, port, context=context) as server:
+        server.login(sender, password)
+        server.send_message(msg)
+
+# ---------------------------
+# Send Emails to All Givers
+# ---------------------------
+def sendEmails(givers, template_file, config_path="config.ini"):
+    if not os.path.exists(template_file):
+        logging.error(f"Email template '{template_file}' not found.")
+        return
+
+    with open(template_file, 'r', encoding='utf-8') as f:
+        template_body = f.read()
+
+    for giver in givers:
+        if not giver.email:
+            logging.warning(f"No email for {giver.name}, skipping...")
+            continue
+
+        assignments_str = "\n".join(f"{cat}: {rec}" for cat, rec in giver.assignments.items())
+        html_body = template_body.replace("{{name}}", giver.name).replace("{{assignment}}", assignments_str)
+        body_override = f"Hi {giver.name},\nYour Secret Santa assignment is:\n{assignments_str}"
+
+        send_email(receiver=giver.email, html_template=html_body, body_override=body_override, config_path=config_path)
+    print("Emails sent")
+
+# ---------------------------
+# Main
+# ---------------------------
 def main():
-	parser=argparse.ArgumentParser()
-	parser.add_argument('-c', '--categories', help='Comma separated list of categories')
-	parser.add_argument('-p', '--participants', help='Comma separated list of participants', required=True)
-	parser.add_argument('-o', '--output_files', help='Output each participant\'s assignments to a separate file', action='store_true')
-	parser.add_argument('-of', '--output_path', help='Change directory to save files', default='.\\')	
-	parser.add_argument('-v', '--verbose', help='Set logging level to info', action='store_true')
-	parser.add_argument('-vv', '--very_verbose', help='Set logging level to debug', action='store_true')
-	args = parser.parse_args()
-	
-	#configure logging
-	if args.verbose:
-		logging.basicConfig(level=logging.INFO)
-	elif args.very_verbose:
-		logging.basicConfig(level=logging.DEBUG)
+    parser = argparse.ArgumentParser()
+    parser.add_argument('-c', '--categories', help='File or comma-separated list of categories')
+    parser.add_argument('-p', '--participants', help='File or comma-separated list of participants', required=True)
+    parser.add_argument('-o', '--output_files', action='store_true', help='Save assignments to files')
+    parser.add_argument('-of', '--output_path', default='./Assignments', help='Directory to save files')
+    parser.add_argument('--send_emails', action='store_true', help='Send emails')
+    parser.add_argument('--email_template', help='Path to HTML email template')
+    parser.add_argument('-v', '--verbose', action='store_true')
+    parser.add_argument('-vv', '--very_verbose', action='store_true')
+    args = parser.parse_args()
 
-	# Get initial list of participants and categories from user input
-	participants = [participant.strip() for participant in args.participants.split(',')]
-	if args.categories:
-		categories = [category.strip() for category in args.categories.split(',')]
-	else:
-		categories = [None]
+    # Load config
+    config_path="config.ini"
+    config = configparser.ConfigParser()
+    with open(config_path, encoding="utf-8") as f:
+        config.read_file(f)
 
-	# Stop if duplicates in participants
-	if len(participants) != len(set(participants)):
-		counts = Counter(participants)
-		duplicates = [i for i, count in counts.items() if count > 1]
-		print(f"Error: The following participant(s) are duplicated:\n\n{duplicates}\n")
-		print("Please rerun with a unique list of participants")
-		exit(1)
+    # Logging
+    if args.very_verbose:
+        logging.basicConfig(level=logging.DEBUG)
+    elif args.verbose:
+        logging.basicConfig(level=logging.INFO)
+    else:
+        logging.basicConfig(level=logging.WARNING)
 
-	# Stop if duplicates in categories
-	elif len(categories) != len(set(categories)):
-		counts = Counter(categories)
-		duplicates = [i for i, count in counts.items() if count > 1]
-		print(f"Error: The following category or categories are duplicated:\n\n{duplicates}\n")
-		print("Please rerun with a unique list of categories")
-		exit(1)
+    # Load categories
+    if args.categories:
+        if os.path.isfile(args.categories):
+            categories = readFromFile(args.categories)
+        else:
+            categories = [c.strip() for c in args.categories.split(',')]
+    else:
+        categories = [None]
 
-	if len(participants) > len(categories):
-		logging.debug('Validated that there are more participants than categories')
-	else:
-		print("Incorrect number of categories to participants")
-		print("There should be at least one less category than there are participants")
-		exit(1)
+    # Load participants
+    require_email = args.send_emails or config.getboolean("email", "send_emails", fallback=False)
+    givers = load_participants(args.participants, categories, require_email=require_email)
+    participants = [g.name for g in givers]
 
+    # Validate uniqueness
+    if len(participants) != len(set(participants)):
+        logging.error("Duplicate participants found")
+        exit(1)
+    if len(categories) != len(set(categories)):
+        logging.error("Duplicate categories found")
+        exit(1)
+    if len(participants) <= len(categories):
+        logging.error("Not enough participants compared to categories")
+        exit(1)
 
-	logging.debug(f'List of categories {categories}')
-	# Instantiate list of givers
-	givers = []
+    # Generate assignments
+    receiver_map = createAssignments(givers, participants, categories)
+    finalizeAssignments(givers, receiver_map)
+    logging.info("Assignments completed.")
 
-	# Create a Reciever and Giver object for each participant
-	for ind, participant in enumerate(participants):
-		givers.append(Giver(participant, dict.fromkeys(categories)))
-		logging.debug(f"Assigned the following giver: {givers[ind]}")
+    # Write files
+    if args.output_files:
+        writeAssignmentsFile(givers, args.output_path)
 
-	receiver_map = []
-	# Set max number of attempts to prevent infinite loop
-	run_count = 0
-	max_attempts = 10000
+    # Send emails
+    if require_email:
+        email_template = args.email_template or config.get("email", "email_template", fallback="templates/christmas.html")
+        sendEmails(givers, email_template)
+        
+    # If not outputting to file or sending emails, print to screen
+    if not args.output_files and not require_email:
+        for giver in givers:
+            print(f"\n{giver}")
+            print("-" * 40)
 
-	# If checkAssignments as not validated, continue running
-	while not checkAssignments(receiver_map):
-		receiver_map = createAssignments(givers,participants,len(categories))
-		run_count += 1
-		logging.debug(f"createAssignments Attempt {run_count}\n {receiver_map}")
-
-		if run_count >= max_attempts:
-			logging.error("Max number of attempts reached")
-			exit(1)
-
-	logging.info(f"succeeded with in {run_count} tries with the following map: {receiver_map}")
-	finalizeAssignments(givers,receiver_map)
-
-	if args.output_files:
-		# Check provided output path
-		if os.path.exists(args.output_path):
-	   		logging.debug("Path exists")
-		else:
-			print("Path does not exist")
-			exit(1)
-
-	    # Write the files if the path exists
-		writeAssignmentsFile(givers,args.output_path)
-	else:
-		for giver in givers:
-			print(giver)
-
-if __name__ == '__main__':
-	main()
+if __name__ == "__main__":
+    main()
