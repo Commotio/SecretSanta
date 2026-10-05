@@ -30,7 +30,7 @@ def create_message(sender, receiver, subject, body, html=None, attachments=None)
 
 def send_email(config_path="config.ini", receiver=None, html_template=None, body_override=None):
     config = configparser.ConfigParser()
-    with open("config.ini", "r", encoding="utf-8") as f:
+    with open(config_path, "r", encoding="utf-8") as f:
         config.read_file(f)
     email_conf = config["email"]
 
