@@ -1,6 +1,6 @@
 [paths]
 output_dir = "./Assignments"
-participants_file = "./participants.txt"
+participants_file = "./participants.csv"
 
 [settings]
 max_attempts = 10000
@@ -8,9 +8,9 @@ verbose = true
 
 
 [email]
-smtp_server = "smtp.gmail.com"
+smtp_server = smtp.gmail.com
 port = 465
-sender_email = "youraddress@gmail.com"
-password = "your_app_password_here"
-email_template = "templates/christmas_email.html"
-subject = "🎁 Your Secret Santa Assignment!"
+sender_email = youraddress@gmail.com
+password = your_app_password_here
+email_template = templates/christmas.html
+subject = 🎁 Your Secret Santa Assignment!
