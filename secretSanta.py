@@ -90,21 +90,42 @@ def load_participants(file_path, categories, require_email=False):
 # Create Assignments
 # ---------------------------
 def createAssignments(givers, participants, categories):
-    #Assign a unique recipient for each giver in each category.
-    receiver_map = []
+    """
+    Assign recipients so that:
+    1. Nobody is assigned to themselves.
+    2. Nobody gets the same recipient in multiple categories.
+    3. Each recipient is assigned exactly once within each category.
+    """
 
-    for giver in givers:
-        assigned = []
-        for category in categories:
-            # Available recipients for this category
-            potential_receivers = [p for p in participants if p != giver.name and p not in assigned]
-            if not potential_receivers:
-                raise ValueError("Not enough participants to assign without repeats")
-            recipient = random.choice(potential_receivers)
-            assigned.append(recipient)
-        receiver_map.append(assigned)
-    return receiver_map
+    num_people = len(participants)
+    num_categories = len(categories)
 
+    if num_categories > num_people - 1:
+        raise ValueError(
+            "You cannot have more categories than participants minus one "
+            "without giving someone the same recipient twice."
+        )
+
+    # Randomize the order of participants so assignments aren't predictable
+    shuffled = participants[:]
+    random.shuffle(shuffled)
+
+    # Create a mapping of giver -> assignments
+    receiver_map = {giver.name: [] for giver in givers}
+
+    # Use cyclic shifts.
+    # Each category shifts everyone by a different amount.
+    # This guarantees:
+    # - no self assignments
+    # - no duplicate recipient within a giver
+    # - every recipient appears exactly once per category
+    for category_index in range(1, num_categories + 1):
+        for i, giver in enumerate(shuffled):
+            recipient = shuffled[(i + category_index) % num_people]
+            receiver_map[giver].append(recipient)
+
+    # Return assignments in the original giver order
+    return [receiver_map[giver.name] for giver in givers]
 
 # ---------------------------
 # Finalize Assignments
