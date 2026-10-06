@@ -1,20 +1,25 @@
 # SecretSanta
 Auto-assign Secret Santa/Mystery Maccabee participants  and/or categories randomly
-Usage:
+usage: 
 ```
-python secretSanta.py -h
-usage: secretSanta.py [-h] -c CATEGORIES -p PARTICIPANTS [-o]
-                      [-of OUTPUT_PATH] [-v] [-vv]
+secretSanta.py [-h] [-c CATEGORIES] -p PARTICIPANTS [-o]
+                      [-of OUTPUT_PATH] [--send_emails]
+                      [--email_template EMAIL_TEMPLATE] [-v] [-vv]
 
 optional arguments:
   -h, --help            show this help message and exit
-  -c, --categories      New-line separated list/comma separated list of categories
-  -p, --participants    New-line separated list/comma separated list of participants/CSV  of participant, email
-  -o, --output_files    Output each participant's assignments to a separate
-                        file
-  -of, --output_path    Change directory to save files
-  -v, --verbose         Set logging level to info
-  -vv, --very_verbose   Set logging level to debug
+  -c CATEGORIES, --categories CATEGORIES
+                        File or comma-separated list of categories
+  -p PARTICIPANTS, --participants PARTICIPANTS
+                        File or comma-separated list of participants
+  -o, --output_files    Save assignments to files
+  -of OUTPUT_PATH, --output_path OUTPUT_PATH
+                        Directory to save files (Requires -o)
+  --send_emails         Send emails
+  --email_template EMAIL_TEMPLATE
+                        Path to HTML email template
+  -v, --verbose
+  -vv, --very_verbose
   
 ```
 Example:
