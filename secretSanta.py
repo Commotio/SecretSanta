@@ -211,7 +211,7 @@ def main():
     parser.add_argument('-c', '--categories', help='File or comma-separated list of categories')
     parser.add_argument('-p', '--participants', help='File or comma-separated list of participants', required=True)
     parser.add_argument('-o', '--output_files', action='store_true', help='Save assignments to files')
-    parser.add_argument('-of', '--output_path', default='./Assignments', help='Directory to save files')
+    parser.add_argument('-of', '--output_path', default='./Assignments', help='Directory to save files (Requires -o to actually output)')
     parser.add_argument('--send_emails', action='store_true', help='Send emails')
     parser.add_argument('--email_template', help='Path to HTML email template')
     parser.add_argument('-v', '--verbose', action='store_true')
